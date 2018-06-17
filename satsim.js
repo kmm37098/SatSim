@@ -3,6 +3,11 @@ var swathY = 184;
 var pRefX = 300.52; //front of swath
 var pRefY = 480;  //middle of swath
 
+var slope;	//slope of swath
+
+var missedLeft = false;
+var missedArea = 0;
+
 var tlPoint = 0;	//area coordinates
 var blPoint = 0;
 var trPoint = 0;
@@ -31,17 +36,17 @@ function setup() {
 
   //setting up sliders and checkboxes
 
-  pSlider = createSlider(-3.4908, 3.4908, 0, 0); //set up sliders and text boxes
+  pSlider = createSlider(-3.4908, 24.09, 0, 0); //set up sliders and text boxes 3.4908 = yp .5 = r
   pSlider.position(20, 20);						 	
   pInput = createInput();
   pInput.position(280,20);
   pInput.size(50,17);
-  rSlider = createSlider(-.5, .5, 0, 0);
+  rSlider = createSlider(-5.5, 5.5, 0, 0);
   rSlider.position(20, 50);
   rInput = createInput();
   rInput.position(280,50);
   rInput.size(50,17);
-  ySlider = createSlider(-3.4908, 3.4908, 0, 0);
+  ySlider = createSlider(-10.4908, 10.4908, 0, 0);
   ySlider.position(20, 80);
   yInput = createInput();
   yInput.position(280,80);
@@ -86,6 +91,10 @@ function draw() {
   rInput.changed(rInputChange);
   yInput.changed(yInputChange);
 
+  if(simulate && inRange) { 
+	slope = (592 * Math.cos(getDegrees(rErr)))/(592 * Math.sin(getDegrees(rErr)));
+  }
+
   fill('white');		//display pitch, roll, and yaw errors
   stroke('black');
   text("Pitch", 220, 30);
@@ -95,6 +104,7 @@ function draw() {
   text("Yaw", 220, 90);
   text(yErr, 350, 90);
   text("Instability", 50, 120);
+  text("Missed Area: ", 900, 30);
   text("Press 's' to start simulation.", 1000, 900);
   text("Press 'r' to reset simulation.", 1000, 930);
 
@@ -118,13 +128,13 @@ function draw() {
   fill('red');			//display swath w/ errors
   stroke('red');
   push();
-  translate(swathX,swathY);
+  translate(swathX+.52,swathY+296);
   rotate(rErr);
-  let swath = rect(0,0,.52,592);
+  let swath = rect(-.52,-296,.52,592);
 
   fill('white');		//display point of reference
   stroke('white');
-  pRef = ellipse(.52, 296, 2, 2);
+  pRef = ellipse(0, 0, 2, 2);
   pop();
 
   //-------------------------------------------------
@@ -135,9 +145,9 @@ function draw() {
   	fill('blue');
   	stroke('blue');
   	push();
-  	translate(startScan,swathY);
+  	translate(startScan+.52,swathY+296);	//point of reference is in the middle of the front of the swath
   	rotate(rErr);
-  	let scan1 = rect(0,0,.52,592);
+  	let scan1 = rect(-.52,-296,.52,592);
   	stroke('red');
   	pop();
   }
@@ -145,9 +155,9 @@ function draw() {
   	fill('blue');
   	stroke('blue');
   	push();
-  	translate(endScan-1.52,swathY);		//-1.52 to accomadate for endScan having to be divisible by 3
+  	translate(endScan-1,swathY+296);		//-1 to accomadate for endScan having to be divisible by 3
   	rotate(rErr);
-  	let scan2 = rect(0,0,.52,592);
+  	let scan2 = rect(-.52,-296,.52,592);
   	stroke('red');
   	pop();
   }
@@ -157,33 +167,92 @@ function draw() {
   //---------------------------------------
 
 
-  if(pRefX == startScan) {			//find top left and bottom left corner of area polygon
-  	if(startScan > 540.52) {
-  		tlPoint += pRefX;
-  		blPoint += pRefX;
-  	}
-  	else {							//UPDATE when finished
-  		tlPoint += 540.52;
-  		blPoint += 540.52;
-  	}
-  	if(rErr != 0) {
-  		let diff = (((296 * Math.cos(getDegrees(rErr))) - yErr) - 100) * Math.tan(getDegrees(rErr));
-  		if(diff + tlPoint > 540.52) {
-  			tlPoint += diff;
+  if(pRefX == startScan) {									//find top left and bottom left corner of area polygon
+  	if(isFinite(slope)) {	//if there is a roll error
+  		let temp = ((100+yErr)/slope)+pErr + 540;
+  		if(temp > 540) {
+  			tlPoint += temp;
   		}
+  		else {
+  			tlPoint += 540;
+  		}
+  		temp = ((-100+yErr)/slope)+pErr+540;
+  		if(temp > 540) {
+  			blPoint += temp;
+  		}
+  		else {
+  			blPoint += 540;
+  		}
+  		console.log(tlPoint);
+  		console.log(blPoint);
   	}
-  	console.log(tlPoint);
+  	else {		//if there is not a roll error
+  		let temp = 540;
+  		if(pErr > 0) {
+  			temp += pErr;
+  		}
+  		tlPoint += temp;
+  		blPoint += temp;
+  		console.log(tlPoint);
+  		console.log(blPoint);
+  	}
   }
-  if(pRefX == endScan) {				//what is up with this???????????????????????????
-  	trPoint += pRefX;
-  	console.log(trPoint);
+  if(pRefX == endScan) {										//find top right and bottom right corner of area polygon
+  	if(isFinite(slope)) {	//if there is a roll error
+  		let temp = ((100+yErr)/slope)+pErr + 740;
+  		if(temp < 740) {
+  			trPoint += temp;
+  		}
+  		else {
+  			trPoint += 740;
+  		}
+  		temp = ((-100+yErr)/slope)+pErr+740;
+  		if(temp < 740) {
+  			brPoint += temp;
+  		}
+  		else {
+  			brPoint += 740;
+  		}
+  		console.log(trPoint);
+  		console.log(brPoint);
+  	}
+  	else {		//if there is not a roll error
+  		let temp = 740;
+  		if(pErr < 0) {
+  			temp += pErr;
+  		}
+  		trPoint += temp;
+  		brPoint += temp;
+  		console.log(trPoint);
+  		console.log(brPoint);
+  	}
+  }
+
+  if(!inRange) {
+	  if(missedArea == 0 && (tlPoint > 540 || blPoint > 540)) {
+	  	missedLeft = true;
+	  	let base = Math.abs(tlPoint - blPoint);
+	  	let lArea = .5 * base * 200;
+	  	console.log(lArea/2);
+	  	missedArea += (.5 * lArea);	//half of area to account for doubling of target area dimensions for visual ease
+	  }
+	  if((missedArea == 0 || missedLeft) && (trPoint < 740 || brPoint < 740)) {
+	  	let base = Math.abs(trPoint - brPoint);
+	  	let rArea = .5 * base * 200;
+	  	console.log(rArea/2);
+	  	missedArea += (.5 * rArea);	
+	  	missedLeft = false;
+	  }
+	  fill('white');
+	  stroke('black');
+	  text(missedArea, 1050, 30);		//display area
   }
 
   //---------------------------------------
   //	Conditions for swath movement
   //---------------------------------------
 
-  if(swathX > 980) {			//check to end movement of swath
+  if(pRefX > 980) {			//check to end movement of swath
   	inRange = false;
   }
   if(simulate && inRange) {		//make swath move if simulating and in range
