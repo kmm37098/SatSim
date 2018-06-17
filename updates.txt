@@ -1,3 +1,1 @@
-1. Area
-2. Make point of reference at point of reference
-3. Draw path
+1. Draw path
