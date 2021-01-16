@@ -1,3 +1,41 @@
+//rect = left/right coordinate from left, up/down from top, width, height
+
+//--------------------------
+//----Vars related to view--
+//--------------------------
+//used to adjust actual dimensions (1 km = 1px) to be human viewable
+//todo decide which variables get multiplied by this - specifically errors may be missing it at this point
+const VIEW_MULTIPLIER = 4;
+//canvas is offset by 20 when drawn (help to get full screen with no scrolling)
+const VIEW_ADJ = 20;
+
+
+//------------------------------
+//----Constants for simulation 
+//-----------------------------
+//dimensions of simulation components (in km)
+const TARGET_WIDTH = 50;
+const SWATH_WIDTH = .13;
+const SWATH_HEIGHT = 98;
+
+//used for instability calculation
+const INSTABILITY_STD_DEV = .03333;
+
+
+//--------------------------------
+//----Vars for simulation control
+//--------------------------------
+let instability = false;
+
+//-----------------------------------
+//----Vars to track simulation status
+//-----------------------------------
+let isSimulate = false; 
+let isInSimulationRange = true;
+
+
+//todo variables from here down need to be assessed
+
 var swathX = 300.52;	
 var swathY = 184;	
 var pRefX = 300.52; //front of swath
@@ -14,123 +52,78 @@ var trPoint = 0;
 var brPoint = 0;
 
 var startScan = 540.52;	//point at which the scan starts
-var endScan = 741.52;		//point at which the scan ends
-	
-var simulate = false;	
-var inRange = true;
-var set = true;			
-
-
-var spareRandom = null;		//used for generating random
-
-var pSlider;	//user input
-var pInput;
-var rSlider;
-var rInput;
-var ySlider;
-var yInput;
+var endScan = 741.52;		//point at which the scan ends			
 
 function setup() {
-  createCanvas(1280, 960);
+  createCanvas(windowWidth-VIEW_ADJ, windowHeight-VIEW_ADJ);
   textSize(15);
 
-  //setting up sliders and checkboxes
-
-  pSlider = createSlider(-3.4908, 24.09, 0, 0); //set up sliders and text boxes 3.4908 = yp .5 = r
-  pSlider.position(20, 20);						 	
-  pInput = createInput();
-  pInput.position(280,20);
-  pInput.size(50,17);
-  rSlider = createSlider(-5.5, 5.5, 0, 0);
-  rSlider.position(20, 50);
-  rInput = createInput();
-  rInput.position(280,50);
-  rInput.size(50,17);
-  ySlider = createSlider(-10.4908, 10.4908, 0, 0);
-  ySlider.position(20, 80);
-  yInput = createInput();
-  yInput.position(280,80);
-  yInput.size(50,17);
+  setupUserInput();
 
   fill('white');
   stroke('black');
-  iCheckbox = createCheckbox('', false);	//checkbox for instability
-  iCheckbox.position(20, 110);
 
   angleMode(DEGREES);
 }
 
+
 function draw() {
   background(51);
 
-  //--------------------------------------------------------------------------
-  //     Grab and display values for pitch, roll, yaw, and set instability
-  //--------------------------------------------------------------------------
+  //==============================================
+  //--------------SETUP------------------------
+  //================================================
 
+  let pitchError = pitchSlider.value();
+  let rollError = rollSlider.value();
+  let yawError = yawSlider.value();
 
-  let instability = false;			//instability yes or no?
-  let instabilityVal = 0;
-  if(iCheckbox.checked()) {
-  	instability = true;
+  //todo this, along with every other display that changes should probably be at the bottom (or top)
+  //so that they are showing the most up to date values for each tick
+  displayDynamicText(pitchError, rollError, yawError);
+
+  //add listener for input boxes
+  pitchInput.changed(changePitchInput);
+  rollInput.changed(changeRollInput);
+  yawInput.changed(changeYawInput);
+
+  //add randomness if instable and swath moving
+  //todo update this to change the errors instead of the slider values
+  if(instability && isSimulate) {
+  	rollSlider.value(rollSlider.value() + randomGaussian(0, INSTABILITY_STD_DEV));
+  	pitchSlider.value(pitchSlider.value() + randomGaussian(0, INSTABILITY_STD_DEV));
+  	yawSlider.value(yawSlider.value() + randomGaussian(0, INSTABILITY_STD_DEV));
   }
 
-  if(instability && !set && inRange) {			//add randomness if instable and swath moving
-  	instabilityVal = normalRandomScaled(0, 0.03333);
-  	rSlider.value(rSlider.value() + instabilityVal);
-  	instabilityVal = normalRandomScaled(0, 0.03333);
-  	pSlider.value(pSlider.value() + instabilityVal);
-  	instabilityVal = normalRandomScaled(0, 0.03333);
-  	ySlider.value(ySlider.value() + instabilityVal);
+  //todo decide on if isInSimulationRange is required here
+  if(isSimulate && isInSimulationRange) { 
+	 slope = (592 * Math.cos(getDegrees(rollError)))/(592 * Math.sin(getDegrees(rollError)));
   }
-
-  let rErr = rSlider.value();	//get errors based on instability and slider value
-  let pErr = pSlider.value();
-  let yErr = ySlider.value();
-
-  pInput.changed(pInputChange);		//add controller for input boxes
-  rInput.changed(rInputChange);
-  yInput.changed(yInputChange);
-
-  if(simulate && inRange) { 
-	slope = (592 * Math.cos(getDegrees(rErr)))/(592 * Math.sin(getDegrees(rErr)));
-  }
-
-  fill('white');		//display pitch, roll, and yaw errors
-  stroke('black');
-  text("Pitch", 220, 30);
-  text(pErr, 350, 30);
-  text("Roll", 220, 60);
-  text(rErr, 350, 60);
-  text("Yaw", 220, 90);
-  text(yErr, 350, 90);
-  text("Instability", 50, 120);
-  text("Missed Area: ", 900, 30);
-  text("Press 's' to start simulation.", 1000, 900);
-  text("Press 'r' to reset simulation.", 1000, 930);
 
   //------------------------------------------------------------------------------------------------------------------
   //      Display target area. Set position of swath, reference point, startScan, and endScan according to errors
   //------------------------------------------------------------------------------------------------------------------
 
-  if(set) {
-  	swathX = 300.52 + pErr;		//set orientation of swath (no instability accounted)
-  	swathY = 184 + yErr;
-  	pRefX = 300.52 + pErr;		//set point of reference
-  	pRefY = 480 + yErr;
-  	startScan = 540.52 + pErr;		//set start and end scan position 
-  	endScan = 741.52 + pErr;
+  if(!isSimulate) {
+  	swathX = 300.52 + pitchError;		//set orientation of swath (no instability accounted)
+  	swathY = 184 + yawError;
+  	pRefX = 300.52 + pitchError;		//set point of reference
+  	pRefY = 480 + yawError;
+  	startScan = 540.52 + pitchError;		//set start and end scan position 
+  	endScan = 741.52 + pitchError;
   }
   
   fill('green');		//display target area
   stroke('green');
-  let tArea = rect(540.52,360,200,200);
+  let tArea = rect(540.42,360,TARGET_WIDTH * VIEW_MULTIPLIER, TARGET_WIDTH * VIEW_MULTIPLIER);
 
   fill('red');			//display swath w/ errors
   stroke('red');
   push();
   translate(swathX+.52,swathY+296);
-  rotate(rErr);
-  let swath = rect(-.52,-296,.52,592);
+  rotate(rollError);
+  let swath = rect(-(SWATH_WIDTH * VIEW_MULTIPLIER), -((SWATH_HEIGHT * VIEW_MULTIPLIER)/2), 
+    SWATH_WIDTH * VIEW_MULTIPLIER, SWATH_HEIGHT * VIEW_MULTIPLIER);
 
   fill('white');		//display point of reference
   stroke('white');
@@ -146,7 +139,7 @@ function draw() {
   	stroke('blue');
   	push();
   	translate(startScan+.52,swathY+296);	//point of reference is in the middle of the front of the swath
-  	rotate(rErr);
+  	rotate(rollError);
   	let scan1 = rect(-.52,-296,.52,592);
   	stroke('red');
   	pop();
@@ -156,7 +149,7 @@ function draw() {
   	stroke('blue');
   	push();
   	translate(endScan-1,swathY+296);		//-1 to accomadate for endScan having to be divisible by 3
-  	rotate(rErr);
+  	rotate(rollError);
   	let scan2 = rect(-.52,-296,.52,592);
   	stroke('red');
   	pop();
@@ -169,14 +162,14 @@ function draw() {
 
   if(pRefX == startScan) {									//find top left and bottom left corner of area polygon
   	if(isFinite(slope)) {	//if there is a roll error
-  		let temp = ((100+yErr)/slope)+pErr + 540;
+  		let temp = ((100+yawError)/slope)+pitchError + 540;
   		if(temp > 540) {
   			tlPoint += temp;
   		}
   		else {
   			tlPoint += 540;
   		}
-  		temp = ((-100+yErr)/slope)+pErr+540;
+  		temp = ((-100+yawError)/slope)+pitchError+540;
   		if(temp > 540) {
   			blPoint += temp;
   		}
@@ -188,8 +181,8 @@ function draw() {
   	}
   	else {		//if there is not a roll error
   		let temp = 540;
-  		if(pErr > 0) {
-  			temp += pErr;
+  		if(pitchError > 0) {
+  			temp += pitchError;
   		}
   		tlPoint += temp;
   		blPoint += temp;
@@ -199,14 +192,14 @@ function draw() {
   }
   if(pRefX == endScan) {										//find top right and bottom right corner of area polygon
   	if(isFinite(slope)) {	//if there is a roll error
-  		let temp = ((100+yErr)/slope)+pErr + 740;
+  		let temp = ((100+yawError)/slope)+pitchError + 740;
   		if(temp < 740) {
   			trPoint += temp;
   		}
   		else {
   			trPoint += 740;
   		}
-  		temp = ((-100+yErr)/slope)+pErr+740;
+  		temp = ((-100+yawError)/slope)+pitchError+740;
   		if(temp < 740) {
   			brPoint += temp;
   		}
@@ -218,8 +211,8 @@ function draw() {
   	}
   	else {		//if there is not a roll error
   		let temp = 740;
-  		if(pErr < 0) {
-  			temp += pErr;
+  		if(pitchError < 0) {
+  			temp += pitchError;
   		}
   		trPoint += temp;
   		brPoint += temp;
@@ -228,7 +221,8 @@ function draw() {
   	}
   }
 
-  if(!inRange) {
+  //todo is this correct use of this variable
+  if(!isInSimulationRange) {
 	  if(missedArea == 0 && (tlPoint > 540 || blPoint > 540)) {
 	  	missedLeft = true;
 	  	let base = Math.abs(tlPoint - blPoint);
@@ -253,9 +247,9 @@ function draw() {
   //---------------------------------------
 
   if(pRefX > 980) {			//check to end movement of swath
-  	inRange = false;
+  	isInSimulationRange = false;
   }
-  if(simulate && inRange) {		//make swath move if simulating and in range
+  if(isSimulate && isInSimulationRange) {		//make swath move if simulating and in range
   	swathX = swathX + 3;
   	pRefX = pRefX + 3;
   }
@@ -272,12 +266,11 @@ function draw() {
 
 function keyTyped() {			//if start, no longer in setup, simulating, and in range
 	if (key === 's') {
-		set = false;
-		simulate = true;
-		inRange = true;
+		isSimulate = true;
+		isInSimulationRange = true;
 	}
 	if (key === 'r') {			//if reset, no longer simulating, reset swath position
-		simulate = false;
+		isSimulate = false;
 		swathX = 300;
 		swathY = 184;
 		pRefX = 300.52;
@@ -289,51 +282,49 @@ function keyTyped() {			//if start, no longer in setup, simulating, and in range
 	}
 }
 
-function pInputChange() {				//change slider value to input field 
-	pSlider.value(pInput.value());
-}
-function rInputChange() {
-	rSlider.value(rInput.value());
-}
-function yInputChange() {
-	ySlider.value(yInput.value());
-}
+function setupUserInput() {
+  //todo -3.4908 should be -3.4906?
+  pitchSlider = createSlider(-3.4908, 3.4908, 0, 0).position(20, 20);
+  pitchInput = createInput().position(280,20).size(50,17);
 
-function normalRandom()				//gaussian random function
-{
-	var val, u, v, s, mul;
+  rollSlider = createSlider(-5.5, 5.5, 0, 0).position(20, 50);
+  rollInput = createInput().position(280,50).size(50,17);
 
-	if(spareRandom !== null)
-	{
-		val = spareRandom;
-		spareRandom = null;
-	}
-	else
-	{
-		do
-		{
-			u = Math.random()*2-1;
-			v = Math.random()*2-1;
+  yawSlider = createSlider(-10.4908, 10.4908, 0, 0).position(20, 80);
+  yawInput = createInput().position(280,80).size(50,17);
 
-			s = u*u+v*v;
-		} while(s === 0 || s >= 1);
-
-		mul = Math.sqrt(-2 * Math.log(s) / s);
-
-		val = u * mul;
-		spareRandom = v * mul;
-	}
-	
-	return val / 14;	// 7 standard deviations on either side
+  iCheckbox = createCheckbox('', false).position(20, 110);
 }
 
-function normalRandomScaled(mean, stddev)		//gaussian random function with stddev and mean
-{
-	var r = normalRandom();
+function displayDynamicText(pitchError, rollError, yawError) {
+  fill('white');    //display pitch, roll, and yaw errors
+  stroke('black');
+  text("Pitch Error", 190, 30);
+  text(pitchError, 350, 30);
+  text("Roll Error", 190, 60);
+  text(rollError, 350, 60);
+  text("Yaw Error", 190, 90);
+  text(yawError, 350, 90);
+  text("Instability", 50, 120);
+  text("Missed Area: ", 900, 30);
+  text("Press 's' to start simulation.", 1000, 900);
+  text("Press 'r' to reset simulation.", 1000, 930);
+}
 
-	r = r * stddev + mean;
+function changePitchInput() {       //change slider value to input field 
+  pitchSlider.value(pitchInput.value());
+}
+function changeRollInput() {
+  rollSlider.value(rollInput.value());
+}
+function changeYawInput() {
+  yawSlider.value(yawInput.value());
+}
 
-	return r;
+function setInstability() {
+  if(iCheckbox.checked()) {
+    instability = true;
+  }
 }
 
 function getDegrees(rad) {		//get degrees from radians for trig functions
