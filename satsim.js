@@ -15,8 +15,10 @@ const VIEW_ADJ = 20;
 //-----------------------------
 //dimensions of simulation components (in km)
 const TARGET_WIDTH = 50;
-const TARGET_START_X = 540.52;
-const TARGET_END_X = TARGET_START_X + (TARGET_WIDTH * VIEW_MULTIPLIER);
+const TARGET_LEFT_X = 540.52;
+const TARGET_RIGHT_X = TARGET_LEFT_X + TARGET_WIDTH;
+const TARGET_Y = 300;
+
 const SWATH_WIDTH = .13;
 const SWATH_HEIGHT = 98;
 const SWATH_START_X = 300.52;
@@ -35,9 +37,10 @@ let instability = false;
 //-----------------------------------
 let isSimulating = false; 
 let isInSimulationRange = true;
+let inSetup = true;
 
-let startScan = TARGET_START_X;
-let endScan = TARGET_END_X;
+let startScanX = TARGET_LEFT_X;
+let endScanX = TARGET_RIGHT_X;
 
 let swathX = SWATH_START_X;
 let swathY = SWATH_START_Y;
@@ -47,8 +50,6 @@ let refPointY = 480;
 
 
 //todo variables from here down need to be assessed
-
-var slope;	//slope of swath
 
 var missedLeft = false;
 var missedArea = 0;
@@ -74,9 +75,6 @@ function setup() {
 function draw() {
   background(51);
 
-  //==============================================
-  //--------------SETUP------------------------
-  //================================================
   let pitchError = pitchSlider.value();
   let rollError = rollSlider.value();
   let yawError = yawSlider.value();
@@ -92,76 +90,39 @@ function draw() {
 
   //add randomness if instable and swath moving
   //todo update this to change the errors instead of the slider values
-  if(instability && isSimulating) {
+  if(instability && isSimulating && setup) {
   	rollSlider.value(rollSlider.value() + randomGaussian(0, INSTABILITY_STD_DEV));
   	pitchSlider.value(pitchSlider.value() + randomGaussian(0, INSTABILITY_STD_DEV));
   	yawSlider.value(yawSlider.value() + randomGaussian(0, INSTABILITY_STD_DEV));
   }
 
-  //todo decide on if isInSimulationRange is required here
-  if(isSimulating && isInSimulationRange) { 
-	 slope = (592 * Math.cos(getDegrees(rollError)))/(592 * Math.sin(getDegrees(rollError)));
-  }
-
-  //------------------------------------------------------------------------------------------------------------------
-  //      Set position of swath, reference point, startScan, and endScan according to errors
-  //------------------------------------------------------------------------------------------------------------------
-
-  if(!isSimulating) {
-    //todo account for instability?
-  	swathX = swathX + pitchError;		
-  	swathY = swathY + yawError;
-  	refPointX = refPointX + pitchError;		
-  	refPointY = refPointY + yawError; 
-  	startScan = startScan + pitchError;		
-  	endScan = endScan + pitchError;
-  }
+  adjustForErrors(pitchError, yawError, rollError);
   
   let targetArea;
   let swath;
   let refPoint;
-  displaySimulationResources(targetArea, swath, swathX, swathY, rollError, refPoint);
+  let scanX;
+  let scanY;
+  displaySimulationResources(targetArea, swath, rollError, refPoint);
 
-  //-------------------------------------------------
-  //     Display initial and final scan positions
-  //-------------------------------------------------
-
-  if(refPointX >= startScan) {			//display initial swath scan position
-  	fill('blue');
-  	stroke('blue');
-  	push();
-  	translate(startScan+.52,swathY+296);	//point of reference is in the middle of the front of the swath
-  	rotate(rollError);
-  	let scan1 = rect(-.52,-296,.52,592);
-  	stroke('red');
-  	pop();
-  }
-  if(refPointX >= endScan) {			//display final swath scan position
-  	fill('blue');
-  	stroke('blue');
-  	push();
-  	translate(endScan-1,swathY+296);		//-1 to accomadate for endScan having to be divisible by 3
-  	rotate(rollError);
-  	let scan2 = rect(-.52,-296,.52,592);
-  	stroke('red');
-  	pop();
-  }
+  let swathAngle;
+  moveSwath(swathAngle, rollError);
 
   //---------------------------------------
   //	CALCULATE AREA
   //---------------------------------------
 
 
-  if(refPointX == startScan) {									//find top left and bottom left corner of area polygon
-  	if(isFinite(slope)) {	//if there is a roll error
-  		let temp = ((100+yawError)/slope)+pitchError + 540;
+  if(refPointX == startScanX) {									//find top left and bottom left corner of area polygon
+  	if(isFinite(swathAngle)) {	//if there is a roll error
+  		let temp = ((100+yawError)/swathAngle)+pitchError + 540;
   		if(temp > 540) {
   			tlPoint += temp;
   		}
   		else {
   			tlPoint += 540;
   		}
-  		temp = ((-100+yawError)/slope)+pitchError+540;
+  		temp = ((-100+yawError)/swathAngle)+pitchError+540;
   		if(temp > 540) {
   			blPoint += temp;
   		}
@@ -182,16 +143,16 @@ function draw() {
   		console.log(blPoint);
   	}
   }
-  if(refPointX == endScan) {										//find top right and bottom right corner of area polygon
-  	if(isFinite(slope)) {	//if there is a roll error
-  		let temp = ((100+yawError)/slope)+pitchError + 740;
+  if(refPointX == endScanX) {										//find top right and bottom right corner of area polygon
+  	if(isFinite(swathAngle)) {	//if there is a roll error
+  		let temp = ((100+yawError)/swathAngle)+pitchError + 740;
   		if(temp < 740) {
   			trPoint += temp;
   		}
   		else {
   			trPoint += 740;
   		}
-  		temp = ((-100+yawError)/slope)+pitchError+740;
+  		temp = ((-100+yawError)/swathAngle)+pitchError+740;
   		if(temp < 740) {
   			brPoint += temp;
   		}
@@ -234,39 +195,99 @@ function draw() {
 	  text(missedArea, 1050, 30);		//display area
   }
 
-  //todo fix this
-  moveSwath(isSimulating, isInSimulationRange, swathX, refPointX);
-
   listenForKeyTypes();
 }
 
 
-function moveSwath(isSimulating, isInSimulationRange, swathX, refPointX) {
+function moveSwath(rollError) {
   if(isSimulating && isInSimulationRange) {
     swathX = swathX + 3;
     refPointX = refPointX + 3;
+    swathAngle = (592 * Math.cos(getDegrees(rollError)))/(592 * Math.sin(getDegrees(rollError)));
   }
   if(refPointX > 980) {     //check to end movement of swath
     isInSimulationRange = false;
   }
 }
 
+function adjustForErrors(pitchError, yawError, rollError) {
+    if(!isSimulating && inSetup) {
+      //todo account for instability?
+    swathX = swathX + pitchError;   
+    swathY = swathY + yawError;
+    refPointX = refPointX + pitchError;   
+    refPointY = refPointY + yawError; 
+    startScanX = startScanX + pitchError;   
+    endScanX = endScanX + pitchError;
+  }
+}
+
+function displaySimulationResources(targetArea, swath, rollError, refPoint) {
+  fill('green');    
+  stroke('green');
+  targetArea = rect(TARGET_LEFT_X,TARGET_Y,TARGET_WIDTH, TARGET_WIDTH);
+
+  fill('red');
+  stroke('red');
+  push();
+  translate(swathX+.52,swathY+296);
+  rotate(rollError);
+  swath = rect(-SWATH_WIDTH, -SWATH_HEIGHT/2, 
+    SWATH_WIDTH, SWATH_HEIGHT);
+
+  fill('white');
+  stroke('white');
+  refPoint = ellipse(0, 0, 2, 2);
+  pop();
+
+  displayScanPositions(rollError);
+}
+
+function displayScanPositions(rollError) {
+  //display initial swath scan position
+  if(refPointX >= startScanX) {     
+    fill('blue');
+    stroke('blue');
+    push();
+    //point of reference is in the middle of the front of the swath
+    translate(startScanX+.52,swathY+296); 
+    rotate(rollError);
+    scan1 = rect(-.52,-296,.52,592);
+    stroke('red');
+    pop();
+  }
+  //display final swath scan position
+  if(refPointX >= endScanX) {     
+    fill('blue');
+    stroke('blue');
+    push();
+    //-1 to accomadate for endScan having to be divisible by 3
+    translate(endScanX-1,swathY+296);   
+    rotate(rollError);
+    scan2 = rect(-.52,-296,.52,592);
+    stroke('red');
+    pop();
+  }
+}
+
 function listenForKeyTypes() {
-	if (key === 's') {
-		isSimulating = true;
-		isInSimulationRange = true;
-	}
-	if (key === 'r') {
-		isSimulating = false;
-		swathX = 300;
-		swathY = 184;
-		refPointX = 300.52;
-		refPointY = 480;
-		tlPoint = 0;
-		blPoint = 0;
-		trPoint = 0;
-		brPoint = 0;
-	}
+  if (key === 's') {
+    isSimulating = true;
+    isInSimulationRange = true;
+    inSetup = false;
+  }
+  if (key === 'r') {
+    isSimulating = false;
+    inSetup = true;
+    swathX = 300;
+    swathY = 184;
+    refPointX = 300.52;
+    refPointY = 480;
+    tlPoint = 0;
+    blPoint = 0;
+    trPoint = 0;
+    brPoint = 0;
+  }
 }
 
 function setupUserInput() {
@@ -296,25 +317,6 @@ function displayDynamicText(pitchError, rollError, yawError) {
   text("Missed Area: ", 900, 30);
   text("Press 's' to start simulation.", 1000, 900);
   text("Press 'r' to reset simulation.", 1000, 930);
-}
-
-function displaySimulationResources(targetArea, swath, swathX, swathY, rollError, refPoint) {
-  fill('green');    
-  stroke('green');
-  targetArea = rect(TARGET_START_X,360,TARGET_WIDTH * VIEW_MULTIPLIER, TARGET_WIDTH * VIEW_MULTIPLIER);
-
-  fill('red');
-  stroke('red');
-  push();
-  translate(swathX+.52,swathY+296);
-  rotate(rollError);
-  swath = rect(-(SWATH_WIDTH * VIEW_MULTIPLIER), -((SWATH_HEIGHT * VIEW_MULTIPLIER)/2), 
-    SWATH_WIDTH * VIEW_MULTIPLIER, SWATH_HEIGHT * VIEW_MULTIPLIER);
-
-  fill('white');
-  stroke('white');
-  refPoint = ellipse(0, 0, 2, 2);
-  pop();
 }
 
 function changePitchInput() {       //change slider value to input field 
