@@ -28,6 +28,11 @@ const SWATH_END_X = TARGET_RIGHT_X + TARGET_WIDTH;
 
 const VELOCITY = 3;
 
+//todo should be a function
+const MAX_PITCH_ERROR = 3.4908;
+const MAX_YAW_ERROR = MAX_PITCH_ERROR;
+const MAX_ROLL_ERROR = .5;
+
 //used for instability calculation
 const INSTABILITY_STD_DEV = .03333;
 
@@ -100,113 +105,42 @@ function draw() {
   addInstability();
   adjustForErrors();
   
-  let targetArea;
-  let swath;
-  let refPoint;
-  let scanX;
-  let scanY;
-  displaySimulationResources(targetArea, swath, rollError, refPoint);
+  let targetArea, swath, refPoint, scanX, scanY;
+  displaySimulationResources(targetArea, swath, refPoint);
 
   let swathAngle;
-  moveSwath(swathAngle, rollError);
-  console.log(`RefPointX - ${refPointX} || SwathX - ${swathX}`)
-
-  //---------------------------------------
-  //	CALCULATE AREA
-  //---------------------------------------
-
-  if(refPointX == startScanX) {									//find top left and bottom left corner of area polygon
-  	if(isFinite(swathAngle)) {	//if there is a roll error
-  		let temp = ((100+yawError)/swathAngle)+pitchError + 540;
-  		if(temp > 540) {
-  			tlPoint += temp;
-  		}
-  		else {
-  			tlPoint += 540;
-  		}
-  		temp = ((-100+yawError)/swathAngle)+pitchError+540;
-  		if(temp > 540) {
-  			blPoint += temp;
-  		}
-  		else {
-  			blPoint += 540;
-  		}
-  		console.log(tlPoint);
-  		console.log(blPoint);
-  	}
-  	else {		//if there is not a roll error
-  		let temp = 540;
-  		if(pitchError > 0) {
-  			temp += pitchError;
-  		}
-  		tlPoint += temp;
-  		blPoint += temp;
-  		console.log(tlPoint);
-  		console.log(blPoint);
-  	}
-  }
-  if(refPointX == endScanX) {										//find top right and bottom right corner of area polygon
-  	if(isFinite(swathAngle)) {	//if there is a roll error
-  		let temp = ((100+yawError)/swathAngle)+pitchError + 740;
-  		if(temp < 740) {
-  			trPoint += temp;
-  		}
-  		else {
-  			trPoint += 740;
-  		}
-  		temp = ((-100+yawError)/swathAngle)+pitchError+740;
-  		if(temp < 740) {
-  			brPoint += temp;
-  		}
-  		else {
-  			brPoint += 740;
-  		}
-  		console.log(trPoint);
-  		console.log(brPoint);
-  	}
-  	else {		//if there is not a roll error
-  		let temp = 740;
-  		if(pitchError < 0) {
-  			temp += pitchError;
-  		}
-  		trPoint += temp;
-  		brPoint += temp;
-  		console.log(trPoint);
-  		console.log(brPoint);
-  	}
-  }
-
-  //todo is this correct use of this variable
-  if(!isInSimulationRange) {
-	  if(missedArea == 0 && (tlPoint > 540 || blPoint > 540)) {
-	  	missedLeft = true;
-	  	let base = Math.abs(tlPoint - blPoint);
-	  	let lArea = .5 * base * 200;
-	  	console.log(lArea/2);
-	  	missedArea += (.5 * lArea);	//half of area to account for doubling of target area dimensions for visual ease
-	  }
-	  if((missedArea == 0 || missedLeft) && (trPoint < 740 || brPoint < 740)) {
-	  	let base = Math.abs(trPoint - brPoint);
-	  	let rArea = .5 * base * 200;
-	  	//console.log(rArea/2);
-	  	missedArea += (.5 * rArea);	
-	  	missedLeft = false;
-	  }
-	  fill('white');
-	  stroke('black');
-	  text(missedArea, 1050, 30);		//display area
-  }
+  moveSwath(swathAngle);
+  
+  calculateArea();
 
   listenForKeyTypes();
 }
 
+function calculateArea() {
+  //find x position of vertices of scanned area
+  if(refPointX == startScanX) {
+    if(rollError) {
+      tlPoint
+    } else {
+      tlPoint, blPoint = refPointX;
+    }
+  }
+  if(refPointX == endScanX) {
+    if(rollError) {
 
-function moveSwath(rollError) {
+    } else {
+      trPoint, brPoint = refPointX;
+    }
+  }
+}
+
+function moveSwath(swathAngle) {
   if(isSimulating && isInSimulationRange) {
     swathX = swathX + VELOCITY;
     refPointX = swathX + SWATH_WIDTH
-    //todo figure out this 592
+    //todo am I calculating this correctly?
     swathAngle = (592 * Math.cos(getDegrees(rollError)))/(592 * Math.sin(getDegrees(rollError)));
+    console.log(swathAngle)
   }
   //check to end movement of swath
   if(refPointX > SWATH_END_X) {     
@@ -227,21 +161,20 @@ function adjustForErrors() {
 }
 
 function addInstability() {
-  //todo fix instability moves down to 0 right when simulation starts even tho sliders are set to have error
   if(instability && isSimulating) {
     let potentialRollError = rollError + randomGaussian(0, INSTABILITY_STD_DEV);
-    //todo add constant/calculation for max rollError and use in roll slider as well
-    //todo same for below values
-    rollError = (Math.abs(potentialRollError) > .5) ? 0 : potentialRollError;
+    rollError = (Math.abs(potentialRollError) > MAX_ROLL_ERROR) ? 0 : potentialRollError;
+
     let potentialPitchError = pitchError + randomGaussian(0, INSTABILITY_STD_DEV);
-    pitchError = (Math.abs(potentialPitchError) > 3.4908) ? 0 : potentialPitchError;
+    pitchError = (Math.abs(potentialPitchError) > MAX_PITCH_ERROR) ? 0 : potentialPitchError;
+
     let potentialYawError = yawError + randomGaussian(0, INSTABILITY_STD_DEV);
-    yawError = (Math.abs(potentialYawError) > 3.4908) ? 0 : potentialYawError;
+    yawError = (Math.abs(potentialYawError) > MAX_YAW_ERROR) ? 0 : potentialYawError;
     //console.log(`PitchError - ${pitchError} || RollError - ${rollError} || YawError - ${yawError}`)
   }
 }
 
-function displaySimulationResources(targetArea, swath, rollError, refPoint) {
+function displaySimulationResources(targetArea, swath, refPoint) {
   fill('green');    
   stroke('green');
   targetArea = rect(TARGET_LEFT_X,TARGET_Y,TARGET_WIDTH, TARGET_WIDTH);
@@ -258,10 +191,10 @@ function displaySimulationResources(targetArea, swath, rollError, refPoint) {
   refPoint = ellipse(SWATH_WIDTH, SWATH_HEIGHT/2, 2, 2);
   pop();
 
-  displayScanPositions(rollError);
+  displayScanPositions();
 }
 
-function displayScanPositions(rollError) {
+function displayScanPositions() {
   //display initial swath scan position
   if(refPointX >= startScanX) {     
     fill('blue');
@@ -290,7 +223,6 @@ function displayScanPositions(rollError) {
 }
 
 function listenForKeyTypes() {
-  console.log(instability)
   if (key === 's') {
     isSimulating = true;
     isInSimulationRange = true;
@@ -334,6 +266,8 @@ function displayDynamicText() {
   text(yawError, 350, 90);
   text("Instability", 50, 120);
   text("Missed Area: ", 900, 30);
+  text(missedArea, 1050, 30);
+  //todo fix this location
   text("Press 's' to start simulation.", 1000, 900);
   text("Press 'r' to reset simulation.", 1000, 930);
 }

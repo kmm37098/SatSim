@@ -13,6 +13,7 @@
 - make all numbers have variables/constants where necessary (more readable) ---done except for area code 
 
 #### long-term
-- test on different screen sizes 
+- test on different screen sizes - positions should be a function of window size
 - show missed area
-- allow for changing of simulation values (swath size, etc.)  
+- allow for changing of simulation values (swath size, etc.) 
+- add path 
