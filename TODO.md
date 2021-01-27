@@ -1,20 +1,16 @@
 - improve README
 
 #### functions
+- fix instability (must max and min out)
 - refactor area code  
 - make area code actually work
 
 #### math
 - verify math and numbers  
 
-#### view
-- shift actual simulation pieces up into view  
-- dynamic components should be at the bottom of the loop
-
 #### tedious
 - assess top-level variables marked by todo
-- make all numbers have variables/constants where necessary (more readable)
-- adjust all areas necessary w/ view multiplier 
+- make all numbers have variables/constants where necessary (more readable) ---done except for area code 
 
 #### long-term
 - test on different screen sizes 
