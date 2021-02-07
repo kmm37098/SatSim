@@ -2,7 +2,7 @@
 
 ## Simulation to describe [SPOC CubeSat's](http://smallsat.uga.edu/) pointing accuracy
 
-When pointing towards the earth, the payload of the satellite captures a very small portion of the earth's surface at each moment in time, called the swath. The goal of this simulation is to ensure that the swath of the SPOC satellite will capture the entire target area. 
+When pointing towards the earth, the payload of the satellite captures a very small portion of the earth's surface at each moment in time, called the swath. The goal of this simulation is to ensure that the swath of the SPOC satellite will capture the minimum required percentage of the target area to get accurate data.
 
 ![Simulation picture](./img/sim.png)
 
@@ -19,3 +19,6 @@ As seen in the picture above, there are errors and instability involved in this 
 
 ### Tech stack-  
 [p5.js](https://p5js.org/)
+
+### Getting started
+To run the simulation, simply clone the repository and open the index.html file in the browser of your choice.
