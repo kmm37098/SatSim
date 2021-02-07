@@ -1,7 +1,6 @@
 - improve README
 
 #### functions
-- fix instability (must max and min out)
 - refactor area code  
 - make area code actually work
 

@@ -1,6 +1,8 @@
 # SatSim
 
-### Simulate SPOC and MOCI satellite pointing accuracies
+### Simulate 3U SmallSat satellite pointing accuracies
+
+![Simulation picture](./img/sim.png)
 
 ## Key data points-
 - 400 km altitude
