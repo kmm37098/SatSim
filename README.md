@@ -1,16 +1,21 @@
 # SatSim
 
-### Simulate 3U SmallSat satellite pointing accuracies
+## Simulation to describe [SPOC CubeSat's](http://smallsat.uga.edu/) pointing accuracy
+
+When pointing towards the earth, the payload of the satellite captures a very small portion of the earth's surface at each moment in time, called the swath. The goal of this simulation is to ensure that the swath of the SPOC satellite will capture the entire target area. 
 
 ![Simulation picture](./img/sim.png)
 
-## Key data points-
+As seen in the picture above, there are errors and instability involved in this calculation, so the swath will not always be pointing exactly where we want it to be. The satellite experiences a 3 sigma instability of .1 degrees/sec, meaning that the swath's error is changing on any axis (pitch, roll, yaw) at a rate of .1 degrees/sec or less 99.7% of the time. The swath will never surpass .5 degrees of inaccuracy on any axis. This translates to \~3.4908 km of error for pitch and yaw, with the rate of change of this error (instability) maxing out at 0.698 km/sec 99.7% of the time. Finally, there is a pointing knowledge of .055 degrees. Pointing knowledge defines the degree of accuracy for which the satellite is pointing where it "thinks" it is pointing.
+
+### Key data points-
 - 400 km altitude
 - 50 x 50km target area
 - 98 km x 130m swath
 - .5 degree pointing accuracy
 - .055 degree pointing knowledge
 
-The swath is the area on the ground that the satellite can “see” at a certain point in time. It is susceptible to .5 degrees of inaccuracy in yaw, pitch, and roll. The satellite also experiences a 3 sigma instability of .1 degrees/sec.This means that the pointing is wiggling at a rate of .1 degrees/sec or less 99.7% of the time, and it will detect any time that the pointing is off by more than .5 degrees and fix it. 
+## Simulation technical details
 
-When looking down on the target area from the satellite, it is a square. The swath is a very thin rectangle that is almost twice as wide. The swath should move from one end of the square to the other, and capture the entire square. In perfect conditions, the midpoint of the rectangle should draw a line cutting the square in half. When the yaw is off, the rectangle is either to the left or to the right (max of 3.4908 km). When the pitch is off, the rectangle is shifted up or down (max of 3.4908 km). When the roll is off, the rectangle is at an angle (max of .5 degrees). The instability is changing the point of the satellite by less than 0.698 km/sec in yaw and pitch and .1 deg/sec in roll 99.7% of the time.
+### Tech stack-  
+[p5.js](https://p5js.org/)

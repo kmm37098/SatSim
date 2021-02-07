@@ -1,8 +1,9 @@
-- improve README
+- add my research from google drive to the repo
 
 #### functions
 - refactor area code  
 - make area code actually work
+- fix instability. Should max out a .5, but not reset immediately to 0 upon reaching that
 
 #### math
 - verify math and numbers  
